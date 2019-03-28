@@ -65,26 +65,24 @@ library
   other-extensions:    OverloadedStrings, ScopedTypeVariables, RecordWildCards, GeneralizedNewtypeDeriving
   
   -- Other library packages from which modules are imported.
-  build-depends: base >=4.7 && <4.9
-               , network >=2.6 && <2.7
-               , mime-mail >=0.4 && <0.5
-               , transformers >= 0.2
-               , transformers-compat >= 0.3
-               , bytestring >=0.10 && <0.11
-               , haskeline >=0.7 && <0.8
-               , mtl >=2.0 && <2.3
-               , attoparsec >=0.12 && <0.14
-               , filepath >=1.3 && <1.5
-               , text >=1.2 && <1.3
-               , cryptohash >=0.11 && <0.12
+  build-depends: base >=4.9 && <5 
+               , attoparsec >=0.13 && <0.14
                , base16-bytestring >=0.1 && <0.2
                , base64-bytestring >=1.0 && <1.1
-               , tls >=1.2 && <1.4
-               , x509-system >=1.5 && <1.7
-               , x509-store >=1.5 && <1.7
-               , crypto-random >=0.0 && <0.1
-               , stringsearch >= 0.3.6.5
-  
+               , bytestring >=0.10 && <0.11
+               , cryptohash >=0.11 && <0.12
+               , filepath >=1.4 && <1.5
+               , haskeline >=0.7 && <0.8
+               , mime-mail >=0.4 && <0.5
+               , mtl >=2.2 && <2.3
+               , network >=2.6 && <2.9
+               , stringsearch >= 0.3.6.5 && <0.4
+               , text >=1.2 && <1.3
+               , tls >=1.3 && <1.5
+               , transformers >= 0.5 && <0.6
+               , x509-store >=1.6 && <1.7
+               , x509-system >=1.6 && <1.7
+               
   -- Directories containing source files.
   -- hs-source-dirs:      
   

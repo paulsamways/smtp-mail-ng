@@ -36,12 +36,12 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.State
 
-import Network
-import Network.BSD
+import Network hiding ( HostName )
+import Network.BSD hiding ( HostName )
 import Network.Mail.SMTP.Types
 import Network.Mail.SMTP.ReplyLine
 import Network.Mail.SMTP.SMTPRaw
-import Network.Mail.SMTP.SMTPParameters
+import Network.Mail.SMTP.SMTPParameters hiding ( HostName )
 
 -- STARTTLS support demands some TLS- and X.509-related definitions.
 import Network.TLS
@@ -51,7 +51,6 @@ import Data.X509.CertificateStore (CertificateStore)
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
-import Crypto.Random
 
 import System.IO
 
@@ -191,14 +190,12 @@ tlsUpgrade context = SMTP $ do
 --   coerce it into a first-class value.
 makeTLSContext :: Handle -> HostName -> IO Context
 makeTLSContext handle hostname = do
-  -- Grab a random number generator.
-  rng <- (createEntropyPool >>= return . cprgCreate) :: IO SystemRNG
   -- Find the certificate store. No error reporting if we can't find it; you'll
   -- just (probably) get an error later when the TLS handshake fails due to
   -- an unknown CA.
   certStore <- getSystemCertificateStore
   let params = tlsClientParams hostname certStore
-  contextNew handle params rng
+  contextNew handle params
 
 -- | ClientParams are a slight variation on the default: we throw in a given
 --   certificate store and widen the supported ciphers.
