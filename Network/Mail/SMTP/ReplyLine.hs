@@ -18,11 +18,11 @@ module Network.Mail.SMTP.ReplyLine (
 
   ) where
 
+import           Control.Applicative ( (<|>), many )
 import qualified Data.ByteString as B
-import Data.Attoparsec.ByteString.Char8
-import Control.Applicative
+import           Data.Attoparsec.ByteString.Char8
 
-import Network.Mail.SMTP.Types
+import           Network.Mail.SMTP.Types
 
 -- | A reply from a server: code and message.
 data ReplyLine = ReplyLine !ReplyCode !B.ByteString
@@ -73,7 +73,7 @@ greeting = manyGreetings <|> oneGreeting
 
     oneGreeting :: Parser Greeting
     oneGreeting = do
-      string "220 "
+      _ <- string "220 "
       bytestring <- takeWhile1 isASCIIPrintableNonWhitespace
       messages <- option [] (char ' ' *> (pure <$> textstring))
       crlf
@@ -81,12 +81,12 @@ greeting = manyGreetings <|> oneGreeting
 
     manyGreetings :: Parser Greeting
     manyGreetings = do
-      string "220-"
+      _ <- string "220-"
       bytestring <- takeWhile1 isASCIIPrintableNonWhitespace
       greets <- option [] (char ' ' *> (pure <$> textstring))
       crlf
       moreGreets <- many (string "220-" *> textstring <* crlf)
-      string "220"
+      _ <- string "220"
       lastgreet <- option [] (pure <$> (char ' ' >> textstring))
       let messages = greets ++ moreGreets ++ lastgreet
       return $ Greeting bytestring messages

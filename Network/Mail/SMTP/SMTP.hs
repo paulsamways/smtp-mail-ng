@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 
+{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
 {-|
 Description: definition of the SMTP monad and its terms.
 -}
@@ -29,15 +31,13 @@ module Network.Mail.SMTP.SMTP (
   ) where
 
 import Control.Exception
-import Control.Monad
-import Control.Applicative
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.State
 
-import Network hiding ( HostName )
-import Network.BSD hiding ( HostName )
+import Network.BSD ( getHostName )
+
 import Network.Mail.SMTP.Types
 import Network.Mail.SMTP.ReplyLine
 import Network.Mail.SMTP.SMTPRaw
@@ -64,12 +64,11 @@ newtype SMTP a = SMTP {
 --   Should be exception safe, but I am not confident in this.
 smtp :: SMTPParameters -> SMTP a -> IO (Either SMTPError a)
 smtp smtpParameters smtpValue = do
-  smtpContext <- makeSMTPContext smtpParameters
-  case smtpContext of
+  makeSMTPContext smtpParameters >>= \case
     Left err -> return $ Left err
-    Right smtpContext -> do
-      x <- evalStateT (runExceptT (runSMTP smtpValue)) smtpContext
-      closeSMTPContext smtpContext
+    Right context -> do
+      x <- evalStateT (runExceptT (runSMTP smtpValue)) context
+      closeSMTPContext context
       return x
 
 -- | Attempt to make an SMTPContext.
@@ -78,8 +77,8 @@ makeSMTPContext smtpParameters = do
     clientHostname <- getHostName
     result <- liftIO $ try (smtpConnect serverHostname (fromIntegral port))
     return $ case result :: Either SomeException (SMTPRaw, Maybe Greeting) of
-      Left err -> Left ConnectionFailure
-      Right (smtpRaw, _) -> Right $ SMTPContext smtpRaw serverHostname clientHostname debug
+      Left _ -> Left ConnectionFailure
+      Right (raw, _) -> Right $ SMTPContext raw serverHostname clientHostname debug
   where
     serverHostname = smtpHost smtpParameters
     port = smtpPort smtpParameters
@@ -89,7 +88,7 @@ makeSMTPContext smtpParameters = do
 
 -- | Attempt to close an SMTPContext, freeing its resource.
 closeSMTPContext :: SMTPContext -> IO ()
-closeSMTPContext smtpContext = hClose (smtpHandle (smtpRaw smtpContext))
+closeSMTPContext = hClose . smtpHandle . smtpRaw
 
 -- | Send a command, without waiting for the reply.
 command :: Command -> SMTP ()
@@ -98,7 +97,7 @@ command cmd = SMTP $ do
   liftIO $ (smtpDebug ctxt ("Send command: " ++ show (toByteString cmd)))
   result <- liftIO $ try ((smtpSendCommand (smtpRaw ctxt) cmd))
   case result :: Either SomeException () of
-    Left err -> throwE UnknownError
+    Left _ -> throwE UnknownError
     Right () -> return ()
 
 -- | Send some bytes, with a crlf inserted at the end, without waiting for
@@ -109,7 +108,7 @@ bytes bs = SMTP $ do
     liftIO $ (smtpDebug ctxt ("Send bytes: " ++ show bs))
     result <- liftIO $ try ((smtpSendRaw (smtpRaw ctxt) (B.append bs crlf)))
     case result :: Either SomeException () of
-      Left err -> throwE UnknownError
+      Left _ -> throwE UnknownError
       Right () -> return ()
   where
     crlf = pack "\r\n"
@@ -121,13 +120,11 @@ expect :: ([ReplyLine] -> Maybe SMTPError) -> SMTP ()
 expect ok = SMTP $ do
   ctxt <- lift get
   let smtpraw = smtpRaw ctxt
-  reply <- liftIO $ smtpGetReplyLines smtpraw
-  liftIO $ (smtpDebug ctxt ("Receive response: " ++ show reply))
-  case reply of
+  result <- liftIO $ smtpGetReplyLines smtpraw
+  liftIO $ (smtpDebug ctxt ("Receive response: " ++ show result))
+  case result of
     Nothing -> throwE UnexpectedResponse
-    Just reply -> case ok reply of
-      Just err -> throwE err
-      Nothing -> return ()
+    Just reply -> maybe (pure ()) (throwE) $ ok reply
 
 -- | Like expect, but you give only the ReplyCode that is expected. Any other
 --   reply code, or an unexpected reponse, is considered a failure.
@@ -159,9 +156,9 @@ startTLS = do
 tlsContext :: SMTP Context
 tlsContext = SMTP $ do
   ctxt <- lift get
-  tlsContext <- liftIO $ try (makeTLSContext (getSMTPHandle ctxt) (getSMTPServerHostName ctxt))
-  case tlsContext :: Either SomeException Context of
-    Left err -> throwE EncryptionError
+  result <- liftIO $ try (makeTLSContext (getSMTPHandle ctxt) (getSMTPServerHostName ctxt))
+  case result :: Either SomeException Context of
+    Left _ -> throwE EncryptionError
     Right context -> return context
 
 -- | Upgrade to TLS. If the handshake is successful, the underlying SMTPRaw
@@ -171,7 +168,7 @@ tlsUpgrade :: Context -> SMTP ()
 tlsUpgrade context = SMTP $ do
   result <- liftIO $ try (handshake context)
   case result :: Either SomeException () of
-    Left err -> throwE EncryptionError
+    Left _ -> throwE EncryptionError
     Right () -> do
       -- Now that we have upgraded, we must change the means by which we push
       -- and pull data to and from the pipe; we must use the TLS library's
@@ -189,13 +186,13 @@ tlsUpgrade context = SMTP $ do
 --   This action may throw an exception. We are careful to handle it and
 --   coerce it into a first-class value.
 makeTLSContext :: Handle -> HostName -> IO Context
-makeTLSContext handle hostname = do
+makeTLSContext h hostname = do
   -- Find the certificate store. No error reporting if we can't find it; you'll
   -- just (probably) get an error later when the TLS handshake fails due to
   -- an unknown CA.
   certStore <- getSystemCertificateStore
   let params = tlsClientParams hostname certStore
-  contextNew handle params
+  contextNew h params
 
 -- | ClientParams are a slight variation on the default: we throw in a given
 --   certificate store and widen the supported ciphers.
