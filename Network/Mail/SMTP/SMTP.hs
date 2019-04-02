@@ -78,7 +78,7 @@ makeSMTPContext smtpParameters = do
     clientHostname <- getHostName
     result <- liftIO $ try (smtpConnect serverHostname (fromIntegral port))
     return $ case result :: Either SomeException (SMTPRaw, Maybe Greeting) of
-      Left err -> Left ConnectionFailure
+      Left err -> Left $ ConnectionFailure $ show err
       Right (smtpRaw, _) -> Right $ SMTPContext smtpRaw serverHostname clientHostname debug
   where
     serverHostname = smtpHost smtpParameters
@@ -212,7 +212,7 @@ tlsClientParams hostname certStore = dflt {
 -- | Description of an error in the SMTP monad evaluation.
 data SMTPError
   = UnexpectedResponse
-  | ConnectionFailure
+  | ConnectionFailure String
   | EncryptionError
   | UnknownError
   deriving (Show, Eq)
