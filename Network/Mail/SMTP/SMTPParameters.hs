@@ -6,14 +6,13 @@ module Network.Mail.SMTP.SMTPParameters (
     SMTPParameters(..)
 
   , HostName
-  , PortNumber(..)
+  , PortNumber
 
   , defaultSMTPParameters
 
   ) where
 
-import Network.Socket (HostName, PortNumber(..))
-import Network.Mail.SMTP.Types
+import Network.Socket (HostName, PortNumber)
 
 -- | Data necessary to kick-start an SMTP session, plus a flag to indicate
 --   verbosity (actually a misnomer I though; should be smtpQuiet, since we
